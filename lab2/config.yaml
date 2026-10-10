@@ -1,0 +1,30 @@
+db:
+  host: localhost
+  port: 27017
+  database: wikinews
+  collection: documents        # queue lives in "<collection>_queue"
+
+logic:
+  user_agent: "info-search-lab2/1.0 (student crawler; zmskvxd@gmail.com)"
+  delay_between_requests: 1.0  # seconds between requests
+  max_documents: 30000         # stop taking new URLs when the DB holds this many (0 = no limit)
+  refresh_interval_days: 7     # re-check documents older than this
+  retry_attempts: 3            # HTTP-level retries (429/5xx) and attempts per URL
+  timeout_seconds: 30
+
+source:
+  name: Wikinews
+  domain: ru.wikinews.org
+  seeds:
+    - https://ru.wikinews.org/wiki/Заглавная_страница
+  # links into these namespaces are not crawled (a colon alone is not enough: headlines contain colons)
+  skip_namespaces: [Медиа, Служебная, Обсуждение, Участник, Участница, Обсуждение участника,
+    Обсуждение участницы, Викиновости, Обсуждение Викиновостей, Файл, Обсуждение файла, Изображение,
+    MediaWiki, Обсуждение MediaWiki, Шаблон, Обсуждение шаблона, Справка, Обсуждение справки,
+    Категория, Обсуждение категории, Портал, Обсуждение портала, Комментарии,
+    Обсуждение комментариев, TimedText, TimedText talk, Модуль, Обсуждение модуля, Event,
+    Event talk, Special, Talk, User, File, Category, Template, Help]
+
+logging:
+  level: INFO
+  file: crawler.log

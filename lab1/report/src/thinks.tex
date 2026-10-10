@@ -1,0 +1,86 @@
+\section{Исходный код}
+Программа \texttt{main.py} написана на Python 3 и использует библиотеки
+\texttt{requests} и \texttt{BeautifulSoup}. Основные функции: \texttt{api} (запрос
+к MediaWiki API с повторами), \texttt{random\_pages} (список случайных статей),
+\texttt{extract\_text} (очистка HTML), \texttt{download} (загрузка и сохранение
+одной статьи) и \texttt{crawl} (основной цикл).
+
+Этапы работы:
+\begin{enumerate}
+    \item получение пачки из 500 случайных статей (без перенаправлений);
+    \item отбрасывание уже скачанных идентификаторов;
+    \item параллельная (в нескольких потоках) загрузка HTML каждой статьи;
+    \item выделение текста, пропуск коротких статей;
+    \item сохранение HTML-документа и JSON-метаданных.
+\end{enumerate}
+
+Учтены особенности реального API: временные сбои (повторные попытки), ограничение
+частоты запросов (код 429 и заголовок \texttt{Retry-After}), пропуск удалённых и
+недоступных статей, возможность остановить и продолжить загрузку.
+
+Запрос к API с повторами и обработкой ограничения частоты:
+
+\begin{lstlisting}[language=Python]
+def api(**params):
+    for attempt in range(5):
+        try:
+            r = session.get(API, params={"format": "json",
+                            "formatversion": 2, **params}, timeout=30)
+            if r.status_code == 200:
+                return r.json()
+            if r.status_code == 429:   # rate limited
+                time.sleep(int(r.headers.get("Retry-After", 10)))
+                continue
+        except (requests.RequestException, ValueError):
+            pass
+        time.sleep(5 * (attempt + 1))
+    raise RuntimeError(f"API failed: {params}")
+\end{lstlisting}
+
+Выделение текста из HTML статьи:
+
+\begin{lstlisting}[language=Python]
+def extract_text(html):
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup.select(JUNK):
+        tag.decompose()
+    return "\n".join(t.get_text(" ", strip=True)
+                     for t in soup.select("p, h2, h3, li")
+                     if t.get_text(strip=True))
+\end{lstlisting}
+
+Основной цикл (пачки случайных статей, параллельная загрузка):
+
+\begin{lstlisting}[language=Python]
+with ThreadPoolExecutor(workers) as pool:
+    while count < limit:
+        batch = [p for p in random_pages() if p[0] not in seen]
+        seen.update(p[0] for p in batch)
+        count += sum(pool.map(lambda p: download(p, folder), batch))
+\end{lstlisting}
+
+\pagebreak
+\section{Выводы}
+Выполнив первую лабораторную работу по курсу \enquote{Информационный поиск}, я
+научился собирать корпус документов из открытого API. Основное, что я узнал
+нового:
+
+\begin{itemize}
+    \item работа с MediaWiki API: выбор случайных статей, получение HTML,
+    разбор ответов в формате JSON;
+    \item выделение текста из HTML по CSS-селекторам и удаление служебных
+    элементов (таблиц, сносок, навигации);
+    \item обработка ограничений при загрузке большого объёма данных:
+    повторные попытки, учёт кода 429 и \texttt{Retry-After}, возможность
+    продолжить загрузку. На практике при слишком большом числе потоков (8) API
+    начал отказывать, а при попытке обкачать новостной сайт соединение было
+    заблокировано целиком, поэтому источник был заменён на Википедию;
+    \item подсчёт статистики корпуса: «сырой» HTML в 9 раз больше полезного
+    текста (69{,}1 КБ против 7{,}7 КБ на документ).
+\end{itemize}
+
+Корпус из 30027 статей будет использован в следующих лабораторных работах для
+построения поискового робота, индекса и поиска. Встроенный поиск Википедии
+показал недостатки --- неразрешённую многозначность, неочевидное ранжирование и
+выдачу общих статей вместо точных; их предстоит учесть при построении
+собственного поисковика.

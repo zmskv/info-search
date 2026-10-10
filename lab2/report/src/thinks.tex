@@ -1,0 +1,148 @@
+\section{Исходный код}
+Программа \texttt{main.py} состоит из класса \texttt{Crawler} и вспомогательных
+функций. Основные части: \texttt{normalize} (нормализация URL),
+\texttt{wanted} (фильтр ссылок), \texttt{enqueue}, \texttt{requeue}, \texttt{next\_item}
+(очередь), \texttt{crawl\_one} (загрузка и сохранение одной страницы),
+\texttt{finish} (учёт результата) и \texttt{run} (основной цикл).
+
+Нормализация URL (\texttt{SAFE} --- символы, которые MediaWiki не кодирует в заголовках) и фильтр ссылок (домен, путь, пространство имён, robots.txt):
+
+\begin{lstlisting}[language=Python]
+def normalize(url, base=None):
+    p = urlparse(urljoin(base, url) if base else url)
+    path = unquote(p.path).replace(' ', '_')
+    return 'https://' + p.netloc.lower() + quote(path, safe=SAFE)
+
+def wanted(self, url):
+    p = urlparse(url)
+    if p.netloc != self.domain or not p.path.startswith('/wiki/'):
+        return False
+    title = unquote(p.path[len('/wiki/'):])
+    ns, colon, rest = title.partition(':')
+    return (not (colon and ns in self.skip)
+            and self.robots.can_fetch(self.ua, url))
+\end{lstlisting}
+
+Очередь в MongoDB: добавление без повторов, выбор следующего URL, возврат в
+очередь устаревших документов:
+
+\begin{lstlisting}[language=Python]
+def enqueue(self, urls):
+    now = time.time()
+    ops = [UpdateOne({"_id": u}, {"$setOnInsert": {"state": "new",
+           "tries": 0, "refresh": False, "added": now}}, upsert=True)
+           for u in set(urls) if self.wanted(u)]
+    if ops:
+        self.queue.bulk_write(ops, ordered=False)
+
+def next_item(self):
+    flt = {"state": "new"}
+    if self.limit and self.docs.estimated_document_count() >= self.limit:
+        flt["refresh"] = True      # corpus is full: only refresh
+    return self.queue.find_one(
+        flt, sort=[("tries", ASCENDING), ("added", ASCENDING)])
+
+def requeue(self):
+    cutoff = int(time.time() - self.refresh_days * 86400)
+    self.queue.update_many({"state": "done", "done_at": {"$lt": cutoff}},
+        {"$set": {"state": "new", "tries": 0, "refresh": True}})
+    self.queue.update_many({"state": "error"},
+        {"$set": {"state": "new", "tries": 0}})
+\end{lstlisting}
+
+Загрузка одной страницы: условный запрос, разбор ошибок HTTP, хэш текста
+статьи, запись документа с историей версий:
+
+\begin{lstlisting}[language=Python]
+def crawl_one(self, url):
+    old = self.docs.find_one({"url": url}, {"html_content": 0})
+    headers = ({"If-Modified-Since": old["last_modified"]}
+               if old and old.get("last_modified") else {})
+    try:
+        r = self.session.get(url, headers=headers, timeout=self.timeout)
+    except requests.RequestException:
+        return "error"
+    if r.status_code == 304:                    # not modified
+        self.docs.update_one({"url": url},
+            {"$set": {"crawl_timestamp": int(time.time())}})
+        return "done"
+    if r.status_code == 429 or r.status_code >= 500:
+        return "error"                          # retry later
+    if r.status_code != 200 or "text/html" not in r.headers.get(
+            "Content-Type", ""):
+        return "failed"                         # never retry
+    soup = BeautifulSoup(r.text, "html.parser")
+    body = soup.select_one("#mw-content-text") or soup
+    text = body.get_text(" ", strip=True)
+    h = hashlib.md5(text.encode()).hexdigest()
+    ...                                         # canonical URL, see src
+    if old and old["content_hash"] == h:        # same text: only the date
+        self.docs.update_one({"url": doc_url},
+            {"$set": {"crawl_timestamp": now}})
+    else:
+        update = {"$set": {"url": doc_url, "html_content": r.text,
+                  "source": self.name, "crawl_timestamp": now,
+                  "content_hash": h, ...}}
+        if old:                                 # changed: keep history
+            update["$push"] = {"history": {
+                "content_hash": old["content_hash"],
+                "crawl_timestamp": old["crawl_timestamp"]}}
+        self.docs.update_one({"url": doc_url}, update, upsert=True)
+    self.enqueue(normalize(a["href"], url) for a in body.select("a[href]"))
+    return "done"
+\end{lstlisting}
+
+Основной цикл и остановка по сигналу (очередь в базе --- контрольная точка):
+
+\begin{lstlisting}[language=Python]
+def run(self):
+    self.requeue()
+    self.enqueue(normalize(s) for s in self.seeds)
+    while not self.stop.is_set():
+        item = self.next_item()
+        if not item:
+            break
+        self.finish(item, self.crawl_one(item["_id"]))
+        self.stop.wait(self.delay)    # returns at once on Ctrl+C
+\end{lstlisting}
+
+\pagebreak
+\section{Выводы}
+Выполнив вторую лабораторную работу по курсу \enquote{Информационный поиск}, я
+написал поискового робота для русских Викиновостей. Основное, что я узнал
+нового:
+
+\begin{itemize}
+    \item устройство краулера на практике: очередь URL, нормализация адресов,
+    обход в ширину, вежливые задержки, \texttt{robots.txt}, идентифицирующий
+    \texttt{User-Agent};
+    \item очередь удобно хранить в самой базе данных: тогда она одновременно
+    защищает от повторных загрузок (\texttt{upsert} по URL) и служит
+    контрольной точкой --- остановить робота можно в любой момент, не заводя
+    отдельного файла состояния;
+    \item ошибки HTTP нужно делить на постоянные (404, не-HTML) и временные
+    (429, 5xx, таймауты): первые не повторяются, вторые откладываются в конец
+    очереди с ограничением числа попыток, и ни одна не должна останавливать
+    всю обкачку;
+    \item переобкачка по изменению: условный запрос \texttt{If-Modified-Since}
+    экономит трафик, а сравнение хэша текста статьи позволяет не переписывать
+    неизменившиеся документы и хранить историю версий изменившихся;
+    \item реальность внесла поправки: заголовки новостей содержат двоеточие,
+    поэтому служебные страницы (\texttt{Категория:}, \texttt{Служебная:}, \dots)
+    нельзя отсеивать по одному символу --- понадобился список пространств
+    имён; одна и та же страница доступна по нескольким адресам, поэтому
+    документы хранятся под каноническим URL (в контрольном прогоне такими
+    оказались 22 из 222 адресов);
+    \item «сырой» HTML страницы Викиновостей в 17 раз больше полезного текста
+    (125{,}7 КБ против 7{,}5 КБ на документ), что нужно учитывать при выборе
+    хранилища и при построении индекса.
+\end{itemize}
+
+Викиновости открыты для автоматического доступа при соблюдении
+правил (идентифицирующий \texttt{User-Agent}, \texttt{robots.txt}, пауза между
+запросами), поэтому для робота выбран именно этот источник. Скорость обкачки
+упирается в паузу между запросами (1~с): корпус из десятков тысяч документов
+набирается за часы. Собранные документы с датами обкачки и историей версий
+будут использоваться в следующих лабораторных работах для построения индекса.
+
+\pagebreak

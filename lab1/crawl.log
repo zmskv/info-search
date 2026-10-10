@@ -1,0 +1,121 @@
+total=381
+total=710
+total=1046
+total=1378
+total=1715
+total=2059
+total=2395
+total=2734
+total=3055
+total=3386
+total=3735
+total=4071
+total=4396
+total=4742
+total=5078
+total=5400
+total=5720
+total=6057
+Traceback (most recent call last):
+  File "/Users/zmskv/Documents/info-search/lab1/main.py", line 97, in <module>
+    stats(a.out) if a.stats else crawl(a.out, a.limit, a.workers)
+                                 ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/zmskv/Documents/info-search/lab1/main.py", line 73, in crawl
+    count += sum(pool.map(lambda p: download(p, folder), batch))
+             ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.3/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/_base.py", line 619, in result_iterator
+    yield _result_or_cancel(fs.pop())
+          ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.3/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/_base.py", line 317, in _result_or_cancel
+    return fut.result(timeout)
+           ~~~~~~~~~~^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.3/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/_base.py", line 456, in result
+    return self.__get_result()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.3/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/_base.py", line 401, in __get_result
+    raise self._exception
+  File "/opt/homebrew/Cellar/python@3.13/3.13.3/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/Users/zmskv/Documents/info-search/lab1/main.py", line 73, in <lambda>
+    count += sum(pool.map(lambda p: download(p, folder), batch))
+                                    ~~~~~~~~^^^^^^^^^^^
+  File "/Users/zmskv/Documents/info-search/lab1/main.py", line 51, in download
+    parse = api(action="parse", pageid=pageid, prop="text", disableeditsection=1)["parse"]
+            ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/zmskv/Documents/info-search/lab1/main.py", line 28, in api
+    raise RuntimeError(f"API failed: {params}")
+RuntimeError: API failed: {'action': 'parse', 'pageid': 7220866, 'prop': 'text', 'disableeditsection': 1}
+total=6731
+total=7066
+total=7390
+total=7711
+total=8050
+total=8391
+total=8735
+total=9083
+total=9409
+total=9754
+total=10080
+total=10432
+total=10761
+total=11104
+total=11424
+total=11760
+total=12105
+total=12433
+total=12433
+total=12773
+total=13098
+total=13448
+total=13784
+total=14124
+total=14449
+total=14781
+total=15122
+total=15456
+total=15778
+total=16258
+total=16576
+total=16906
+total=17246
+total=17575
+total=17932
+total=18271
+total=18600
+total=18921
+total=19248
+total=19568
+total=19884
+total=20219
+total=20554
+total=20877
+total=21206
+total=21545
+total=21861
+total=22185
+total=22518
+total=22860
+total=23188
+total=23531
+total=23866
+total=24182
+total=24510
+total=24854
+total=25175
+total=25517
+total=25836
+total=26170
+total=26255
+total=26583
+total=26912
+total=27229
+total=27554
+total=27892
+total=28237
+total=28560
+total=28881
+total=29197
+total=29525
+total=29865
+total=29978
+total=30027
