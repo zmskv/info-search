@@ -1,4 +1,3 @@
-"""Tokenizer checks. Run: python test_main.py"""
 from main import tokenize
 
 

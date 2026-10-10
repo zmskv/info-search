@@ -1,4 +1,3 @@
-"""Lab 1: corpus of Russian Wikipedia articles (raw HTML + cleaned text in JSON)."""
 import argparse
 import json
 import time

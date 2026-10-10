@@ -1,4 +1,3 @@
-"""Lab 3: tokenizer for Russian text (with Latin inclusions). Importable: tokenize(text); CLI runs it over the lab1 corpus."""
 import argparse
 import json
 import re
@@ -29,7 +28,7 @@ PATTERN = re.compile(r"""
     (?P<punct>[^\w\s])
 """ % "|".join(ABBR), re.VERBOSE)
 
-DROP = str.maketrans("", "", "\u00ad\u0301")  # soft hyphen, combining stress mark: they would split words
+DROP = str.maketrans("", "", "\u00ad\u0301") 
 
 
 def tokenize(text, lower=True, yo=True, punct=False, split_compounds=False):
